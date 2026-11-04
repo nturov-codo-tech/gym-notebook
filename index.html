@@ -1,0 +1,785 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Gym">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#151c2d" media="(prefers-color-scheme: dark)">
+<title>Gym Notebook</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<style>
+/* Layout: a graph-paper notebook page — sticky day header, one column of exercise cards, rest timer pinned to the bottom like a thumb bar */
+:root {
+  --paper: #f4f6fa;
+  --grid: rgba(52, 84, 160, 0.07);
+  --card: #ffffff;
+  --ink: #1b2644;
+  --muted: #5d6886;
+  --line: #d8deea;
+  --pen: #2443c4;
+  --pen-soft: #e6ebfb;
+  --on-pen: #ffffff;
+  --done: #1d8657;
+  --done-soft: #e3f3ea;
+  --display: "Oswald", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --body: "Golos Text", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0d1220; --grid: rgba(126, 155, 255, 0.05); --card: #151c2d; --ink: #e5eaf6;
+    --muted: #97a2bf; --line: #263048; --pen: #7f9cff; --pen-soft: #1f2a4a; --on-pen: #0d1220;
+    --done: #4cc38a; --done-soft: #15302a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0d1220; --grid: rgba(126, 155, 255, 0.05); --card: #151c2d; --ink: #e5eaf6;
+  --muted: #97a2bf; --line: #263048; --pen: #7f9cff; --pen-soft: #1f2a4a; --on-pen: #0d1220;
+  --done: #4cc38a; --done-soft: #15302a; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 22px 22px;
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.45;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  z-index: 10; background: var(--card);
+}
+button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--pen); outline-offset: 2px; }
+.wrap {
+  max-width: 640px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* Header */
+.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--card); border-bottom: 1px solid var(--line);
+}
+.top .wrap { padding-block: 10px 12px; display: grid; gap: 10px; }
+.row-a { display: flex; align-items: center; gap: 8px; }
+.brand { font-family: var(--display); font-weight: 500; letter-spacing: .08em; text-transform: uppercase; font-size: 13px; color: var(--muted); flex: 1; }
+.sync { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.sync i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); display: inline-block; }
+.sync[data-s="ok"] i { background: var(--done); }
+.sync[data-s="saving"] i { background: var(--pen); }
+.row-b { display: flex; align-items: center; gap: 10px; }
+.navbtn {
+  width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--paper);
+  font-size: 22px; line-height: 1; display: grid; place-items: center; flex: none;
+}
+.dayname { flex: 1; min-width: 0; text-align: center; }
+.dayname h1 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 26px; line-height: 1.1; letter-spacing: .01em; text-wrap: balance; }
+.dayname .sub { font-size: 13px; color: var(--muted); }
+.dots { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.dot {
+  height: 30px; border-radius: 8px; border: 1px solid var(--line); background: var(--paper);
+  font-family: var(--mono); font-size: 11px; color: var(--muted); padding: 0;
+}
+.dot.wk2 { border-style: dashed; }
+.dot[aria-current="true"] { background: var(--pen); border-color: var(--pen); color: var(--on-pen); border-style: solid; }
+.bar { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.bar b { display: block; height: 100%; background: var(--done); width: 0; transition: width .3s; }
+
+/* Main */
+main .wrap { padding-block: 16px 24px; display: grid; gap: 22px; }
+.since { font-size: 13px; color: var(--muted); text-align: center; }
+.group { display: grid; gap: 10px; }
+.group h2 {
+  margin: 0; font-family: var(--display); font-weight: 500; font-size: 15px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--pen); display: flex; gap: 8px; align-items: baseline;
+}
+.group h2 span { color: var(--muted); font-size: 12px; }
+.ex {
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px;
+  display: grid; gap: 12px;
+}
+.ex.complete { border-color: var(--done); }
+.ex-head { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: start; }
+.n {
+  width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--pen); color: var(--pen);
+  font-family: var(--mono); font-size: 13px; font-weight: 700; display: grid; place-items: center;
+}
+.ex.complete .n { background: var(--done); border-color: var(--done); color: var(--card); }
+.names { min-width: 0; }
+.names h3 { margin: 0; font-size: 17px; font-weight: 600; line-height: 1.25; text-wrap: balance; }
+.names .alt { margin: 2px 0 0; font-size: 14px; color: var(--muted); }
+.scheme { font-family: var(--mono); font-weight: 700; font-size: 15px; white-space: nowrap; padding-top: 2px; }
+.sets { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.set {
+  width: 48px; height: 48px; border-radius: 50%; border: 2px solid var(--line); background: var(--paper);
+  font-family: var(--mono); font-weight: 700; font-size: 14px; display: grid; place-items: center; padding: 0;
+  transition: background .15s, border-color .15s, transform .1s;
+}
+.set:active { transform: scale(.94); }
+.set[aria-pressed="true"] { background: var(--done); border-color: var(--done); color: var(--card); }
+.hold-btn, .chip {
+  height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid var(--pen); background: var(--pen-soft);
+  color: var(--pen); font-weight: 600; font-size: 14px;
+}
+.counter { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.counter .val { font-family: var(--mono); font-weight: 700; font-size: 22px; min-width: 92px; }
+.counter .val small { font-size: 14px; color: var(--muted); }
+.counter button { height: 44px; min-width: 52px; border-radius: 12px; border: 1px solid var(--line); background: var(--paper); font-family: var(--mono); font-weight: 700; }
+.weight { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.weight label { font-size: 13px; color: var(--muted); }
+.weight .inp { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); overflow: hidden; }
+.weight input {
+  width: 76px; height: 40px; border: 0; background: transparent; color: var(--ink); padding: 0 8px;
+  font-family: var(--mono); font-size: 17px; font-weight: 700; text-align: right;
+}
+.weight input:focus { outline: none; }
+.weight .unit { padding-right: 10px; font-size: 13px; color: var(--muted); }
+.weight .last { font-size: 13px; color: var(--muted); }
+.weight .last b { color: var(--ink); font-family: var(--mono); }
+details { border-top: 1px dashed var(--line); padding-top: 10px; }
+summary { font-size: 14px; font-weight: 500; color: var(--pen); cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "+"; font-family: var(--mono); font-weight: 700; width: 14px; }
+details[open] summary::before { content: "–"; }
+.eq { margin: 10px 0 6px; font-size: 14px; }
+.eq span { color: var(--muted); }
+.tips { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: 15px; }
+.tips .alt { display: block; color: var(--muted); font-size: 13px; }
+.note { margin-top: 10px; font-size: 13px; color: var(--muted); background: var(--paper); border-radius: 8px; padding: 8px 10px; }
+.finish {
+  height: 56px; border-radius: 14px; border: 0; background: var(--pen); color: var(--on-pen);
+  font-family: var(--display); font-weight: 500; font-size: 18px; letter-spacing: .05em; text-transform: uppercase;
+}
+.finish.ready { background: var(--done); }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: grid; gap: 12px; }
+.panel h2 { margin: 0; font-family: var(--display); font-weight: 500; font-size: 15px; letter-spacing: .1em; text-transform: uppercase; }
+.hist { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 14px; }
+.hist li { display: flex; justify-content: space-between; gap: 10px; font-variant-numeric: tabular-nums; }
+.hist li span:last-child { color: var(--muted); }
+.empty { font-size: 14px; color: var(--muted); }
+.opt { display: grid; gap: 6px; }
+.opt > span { font-size: 13px; color: var(--muted); }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg button { flex: 1; height: 40px; border: 0; background: var(--paper); font-size: 14px; font-weight: 500; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--pen); color: var(--on-pen); }
+.small { font-size: 12px; color: var(--muted); margin: 0; }
+
+/* Timer bar */
+.timer {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
+  background: var(--card); border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.timer .wrap { padding-block: 10px; display: flex; align-items: center; gap: 10px; }
+.timer .lbl { font-size: 12px; color: var(--muted); line-height: 1.2; flex: 1; min-width: 0; }
+.timer .lbl b { display: block; color: var(--ink); font-size: 14px; }
+.timer .clock { font-family: var(--mono); font-weight: 700; font-size: 30px; font-variant-numeric: tabular-nums; }
+.timer.run { background: var(--pen); color: var(--on-pen); border-color: var(--pen); }
+.timer.run .lbl, .timer.run .lbl b { color: var(--on-pen); }
+.timer.go { background: var(--done); border-color: var(--done); }
+.timer.go .lbl, .timer.go .lbl b, .timer.go .clock { color: var(--card); }
+.tbtn { height: 44px; min-width: 56px; padding: 0 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--paper); font-family: var(--mono); font-weight: 700; font-size: 15px; }
+.timer.run .tbtn { background: transparent; border-color: currentColor; color: var(--on-pen); }
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(84px + env(safe-area-inset-bottom, 0px)); z-index: 7;
+  background: var(--ink); color: var(--paper); border-radius: 12px; padding: 10px 14px; font-size: 14px;
+  display: flex; gap: 14px; align-items: center; max-width: calc(100% - 32px);
+}
+.toast button { background: transparent; border: 0; color: var(--paper); font-weight: 600; text-decoration: underline; padding: 4px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="row-a">
+      <div class="brand" id="brand">Тетрадь · Gym Notebook</div>
+      <div class="sync" id="sync" data-s="local"><i></i><span id="syncTxt">This device</span></div>
+    </div>
+    <div class="row-b">
+      <button class="navbtn" id="prev" aria-label="Previous day">‹</button>
+      <div class="dayname"><h1 id="dayTitle">Неделя 1 · День I</h1><div class="sub" id="daySub">Week 1 · Day 1</div></div>
+      <button class="navbtn" id="next" aria-label="Next day">›</button>
+    </div>
+    <div class="dots" id="dots"></div>
+    <div class="bar"><b id="prog"></b></div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap" id="main"></div>
+</main>
+
+<div class="timer" id="timer">
+  <div class="wrap" id="timerInner"></div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const G = {
+  abs: ["Пресс", "Abs"], chest: ["Грудь", "Chest"], biceps: ["Бицепс", "Biceps"],
+  shoulders: ["Плечи", "Shoulders"], legs: ["Ноги", "Legs"], back: ["Спина", "Back"], triceps: ["Трицепс", "Triceps"]
+};
+
+const EX = {
+  crunch: { ru: "Скручивания (пресс верхний)", en: "Crunches (upper abs)", eq: ["Коврик", "Mat"], w: false, tips: [
+    ["Поясница прижата к полу", "Lower back stays pressed to the floor"],
+    ["Поднимай лопатки, голову руками не тяни", "Lift your shoulder blades; don't pull your head with your hands"],
+    ["Выдох на подъёме, пауза 1 с вверху", "Exhale on the way up, pause 1 s at the top"]] },
+  abmachine: { ru: "Пресс нижний в тренажёре", en: "Lower abs on the machine", eq: ["Тренажёр для пресса", "Ab machine"], w: true, tips: [
+    ["Подкручивай таз к груди — работает пресс, не руки", "Curl your pelvis toward your chest; abs do the work, not arms"],
+    ["Вниз медленно, без рывков", "Lower slowly, no jerking"],
+    ["Не бросай вес внизу — держи напряжение", "Don't drop the weight at the bottom; keep tension"]] },
+  bench: { ru: "Жим штанги лёжа", en: "Barbell bench press", eq: ["Штанга, горизонтальная скамья", "Barbell, flat bench"], w: true, tips: [
+    ["Лопатки сведены и прижаты к скамье", "Shoulder blades squeezed and pinned to the bench"],
+    ["Гриф опускай к низу груди, локти примерно под 45°", "Lower the bar to your lower chest, elbows at about 45°"],
+    ["Стопы упёрты в пол, ягодицы на скамье", "Feet planted, glutes stay on the bench"]] },
+  incline: { ru: "Жим штанги на наклонной скамье", en: "Incline barbell press", eq: ["Штанга, скамья 30–45° (голова выше)", "Barbell, bench at 30–45° (head up)"], w: true, tips: [
+    ["Угол 30–45°, не круче", "30–45° angle, no steeper"],
+    ["Гриф к верху груди, под ключицы", "Bar comes down to the upper chest, just under the collarbones"],
+    ["Лопатки сведены, локти под грифом", "Shoulder blades squeezed, elbows under the bar"]] },
+  pecdeck: { ru: "Бабочка", en: "Pec deck (butterfly)", eq: ["Тренажёр «бабочка»", "Pec deck machine"], w: true, tips: [
+    ["Рукояти на уровне груди", "Handles at chest height"],
+    ["Свёл — сожми грудь на 1 с", "Squeeze your chest for 1 s when the handles meet"],
+    ["Назад медленно, до лёгкого растяжения", "Return slowly to a light stretch"]] },
+  bbcurl: { ru: "Подъём штанги на бицепс стоя", en: "Standing barbell curl", eq: ["Прямой или EZ-гриф", "Straight or EZ bar"], w: true, tips: [
+    ["Локти прижаты к корпусу и не уходят вперёд", "Elbows pinned to your sides, they don't drift forward"],
+    ["Без раскачки корпусом", "No swinging your torso"],
+    ["Опускай медленно, 2–3 с", "Lower slowly, 2–3 s"]] },
+  hammer: { ru: "Молотки с гантелями", en: "Dumbbell hammer curl", eq: ["Гантели", "Dumbbells"], w: true, tips: [
+    ["Хват нейтральный — ладони смотрят друг на друга", "Neutral grip, palms face each other"],
+    ["Локти неподвижны", "Elbows stay still"],
+    ["Можно поочерёдно", "Alternating arms is fine"]] },
+  cablecrunch: { ru: "«Молитва» — скручивания на блоке на коленях", en: "Kneeling cable crunch («prayer»)", eq: ["Верхний блок, канат", "High pulley, rope"], w: true, tips: [
+    ["На коленях лицом к блоку, канат у головы", "Kneel facing the stack, rope held by your head"],
+    ["Скручивайся, сближая рёбра и таз; на пятки не садись", "Crunch ribs toward pelvis; don't sit back on your heels"],
+    ["Бёдра неподвижны, работает только пресс", "Hips stay still, only the abs move you"]] },
+  hangraise: { ru: "Подъём ног в висе на турнике", en: "Hanging leg raise", eq: ["Турник", "Pull-up bar"], w: false, tips: [
+    ["Не раскачивайся, гаси инерцию", "Don't swing; kill the momentum"],
+    ["Поднимай ноги, подкручивая таз вперёд", "Raise your legs while curling your pelvis forward"],
+    ["Тяжело — сгибай колени", "Too hard? Bend your knees"]] },
+  reardb: { ru: "Разведение гантелей в наклоне", en: "Bent-over dumbbell reverse fly", eq: ["Лёгкие гантели", "Light dumbbells"], w: true, tips: [
+    ["Наклон почти параллельно полу, спина прямая", "Lean almost parallel to the floor, back flat"],
+    ["Руки слегка согнуты, разводи в стороны", "Arms slightly bent, raise out to the sides"],
+    ["Работает задняя дельта, лопатки сильно не своди", "Rear delts do the work; don't pinch the shoulder blades hard"]] },
+  lateral: { ru: "Разведение гантелей в стороны стоя", en: "Standing lateral raise", eq: ["Гантели", "Dumbbells"], w: true, tips: [
+    ["Поднимай до уровня плеч, не выше", "Raise to shoulder height, no higher"],
+    ["Локти чуть выше кистей", "Elbows slightly higher than wrists"],
+    ["Без раскачки, вниз медленно", "No swinging, lower slowly"]] },
+  dbpress: { ru: "Жим гантелей стоя", en: "Standing dumbbell shoulder press", eq: ["Гантели", "Dumbbells"], w: true, tips: [
+    ["Пресс и ягодицы напряжены, поясницу не прогибай", "Brace abs and glutes, don't arch your lower back"],
+    ["Гантели от уровня ушей вверх", "Press from ear level straight up"],
+    ["Наверху гантелями не стучи", "Don't clank the dumbbells at the top"]] },
+  squat: { ru: "Приседания", en: "Squats", eq: ["Штанга на плечах (или Смит)", "Barbell on your back (or Smith machine)"], w: true, tips: [
+    ["Колени идут по направлению носков", "Knees track over your toes"],
+    ["Спина прямая, вес на пятках и середине стопы", "Back straight, weight on heels and mid-foot"],
+    ["Вниз до параллели бедра с полом", "Down until thighs are parallel to the floor"]] },
+  legcurl: { ru: "Сгибание ног в тренажёре", en: "Machine leg curl", eq: ["Тренажёр лёжа или сидя", "Lying or seated leg curl machine"], w: true, tips: [
+    ["Валик чуть выше пяток", "Pad sits just above your heels"],
+    ["Таз прижат к скамье", "Hips stay pressed to the pad"],
+    ["Пауза вверху, вниз медленно", "Pause at the top, lower slowly"]] },
+  abwheel: { ru: "Ролик для пресса («каток»)", en: "Ab wheel rollout", eq: ["Ролик (колесо) для пресса, коврик", "Ab wheel, mat"], w: false, tips: [
+    ["Начинай с колен", "Start from your knees"],
+    ["Спина слегка круглая, поясница не проваливается", "Back slightly rounded, lower back never sags"],
+    ["Выкатывайся настолько, насколько держишь корпус", "Roll out only as far as you can hold your core"]] },
+  plank: { ru: "Планка", en: "Plank", eq: ["Коврик", "Mat"], w: false, tips: [
+    ["Тело — прямая линия от головы до пяток", "Body in a straight line from head to heels"],
+    ["Пресс и ягодицы напряжены", "Abs and glutes tight"],
+    ["5 мин не выходит — стой отрезками с короткими паузами", "Can't hold 5 min yet? Do it in chunks with short breaks"]] },
+  pulldown: { ru: "Тяга верхнего блока за голову", en: "Behind-the-neck lat pulldown", eq: ["Блочный тренажёр, колени под валиками", "Lat pulldown machine, knees locked under the pads"], w: true, tips: [
+    ["Широкий хват, колени зафиксированы", "Wide grip, knees locked in"],
+    ["Тяни к основанию шеи, голову чуть наклони вперёд", "Pull to the base of your neck, head tilted slightly forward"],
+    ["Если плечу некомфортно — тяни к груди", "If your shoulder complains, pull to the front instead"]] },
+  hyper: { ru: "Гиперэкстензия с весом", en: "Weighted back extension", eq: ["Тренажёр для гиперэкстензии, блин", "Hyperextension bench, weight plate"], w: true, tips: [
+    ["Блин прижат к груди", "Hold the plate against your chest"],
+    ["Вверх до прямой линии тела, не переразгибайся", "Rise to a straight line, don't over-arch"],
+    ["Вниз медленно", "Lower slowly"]] },
+  seatedrow: { ru: "Тяга нижнего блока сидя", en: "Seated cable row", eq: ["Нижний блок, V-рукоять", "Low cable, V-handle"], w: true, tips: [
+    ["Спина прямая, корпус почти неподвижен", "Back straight, torso barely moves"],
+    ["Тяни к животу, своди лопатки", "Pull to your belly, squeeze shoulder blades"],
+    ["Плечи вниз, не к ушам", "Shoulders down, away from your ears"]] },
+  french: { ru: "Французский жим лёжа", en: "Lying French press (skull crusher)", eq: ["EZ-гриф, скамья", "EZ bar, flat bench"], w: true, tips: [
+    ["Плечи вертикально и неподвижны", "Upper arms vertical and still"],
+    ["Опускай гриф ко лбу или чуть за голову", "Lower the bar to your forehead or just behind it"],
+    ["Сгибаются только локти", "Only the elbows bend"]] },
+  pushdown: { ru: "Разгибание рук на блоке (прямая рукоять)", en: "Cable triceps pushdown, straight bar", eq: ["Кроссовер, верхний блок, прямая рукоять", "Cable station, high pulley, straight bar"], w: true, tips: [
+    ["Локти прижаты к бокам", "Elbows pinned to your sides"],
+    ["Разгибай до конца и сожми трицепс", "Extend fully and squeeze the triceps"],
+    ["Корпусом на рукоять не наваливайся", "Don't lean your body weight onto the bar"]] },
+  kneelcross: { ru: "Сведение рук в кроссовере на коленях", en: "Kneeling cable crossover fly", eq: ["Кроссовер, верхние блоки", "Cable crossover, high pulleys"], w: true, tips: [
+    ["Встань на колени по центру, корпус чуть вперёд", "Kneel in the middle, torso leaning slightly forward"],
+    ["Руки слегка согнуты, своди вниз-вперёд перед собой", "Arms slightly bent, bring hands down and together in front"],
+    ["Внизу сожми грудь на 1 с", "Squeeze your chest for 1 s at the bottom"]] },
+  declinedb: { ru: "Жим гантелей на скамье с обратным наклоном, руки вместе", en: "Decline dumbbell squeeze press", eq: ["Гантели, скамья с обратным наклоном (голова ниже)", "Dumbbells, decline bench (head down)"], w: true, tips: [
+    ["Гантели прижаты друг к другу всё время", "Keep the dumbbells pressed together the whole time"],
+    ["Опускай к низу груди", "Lower to your lower chest"],
+    ["Сдавливай гантели — грудь работает сильнее", "Squeeze them into each other; the chest works harder"]] },
+  dbfly: { ru: "Разведение гантелей лёжа", en: "Flat dumbbell fly", eq: ["Гантели, горизонтальная скамья", "Dumbbells, flat bench"], w: true, tips: [
+    ["Руки слегка согнуты, угол в локтях не меняется", "Arms slightly bent, elbow angle stays fixed"],
+    ["Опускай до растяжения груди, не ниже плеч", "Lower to a chest stretch, not below shoulder level"],
+    ["Своди по дуге, как будто обнимаешь бочку", "Bring them up in an arc, like hugging a barrel"]] },
+  preacher: { ru: "Сгибания на скамье Скотта", en: "Preacher curl", eq: ["Скамья Скотта, EZ-гриф", "Preacher bench, EZ bar"], w: true, tips: [
+    ["Подмышки плотно на подушке", "Armpits snug on the pad"],
+    ["Внизу не разгибай руки рывком — береги локти", "Don't snap to full extension; protect your elbows"],
+    ["Локти от подушки не отрываются", "Elbows never leave the pad"]] },
+  reversecurl: { ru: "Подъём штанги обратным хватом", en: "Reverse-grip barbell curl", eq: ["Штанга или EZ-гриф", "Barbell or EZ bar"], w: true, tips: [
+    ["Хват сверху, ладони смотрят вниз", "Overhand grip, palms facing down"],
+    ["Локти у корпуса", "Elbows at your sides"],
+    ["Вес легче, чем в обычном подъёме", "Use less weight than a normal curl"]] },
+  arnold: { ru: "Жим Арнольда", en: "Arnold press", eq: ["Гантели, скамья со спинкой", "Dumbbells, upright bench"], w: true, tips: [
+    ["Старт: гантели перед лицом, ладони к себе", "Start: dumbbells in front of your face, palms toward you"],
+    ["По ходу жима разворачивай ладони вперёд", "Rotate palms forward as you press up"],
+    ["Вниз — обратный разворот, медленно", "Reverse the rotation on the way down, slowly"]] },
+  plateraise: { ru: "Подъём блина перед собой", en: "Front plate raise", eq: ["Блин", "Weight plate"], w: true, tips: [
+    ["Руки прямые, блин держишь за края", "Arms straight, hold the plate by its edges"],
+    ["Поднимай до уровня головы", "Raise to head height"],
+    ["Корпусом не раскачивайся", "Don't swing your torso"]] },
+  rearcable: { ru: "Обратное разведение в кроссовере (задняя дельта)", en: "Reverse cable fly (rear delts)", eq: ["Кроссовер, блоки на уровне плеч, без рукоятей или с маленькими", "Cable crossover, pulleys at shoulder height, no handles or small ones"], w: true, tips: [
+    ["Вес маленький. Тросы крест-накрест: левая рука берёт правый трос, правая — левый", "Light weight. Cross the cables: left hand takes the right cable, right hand the left"],
+    ["Руки почти прямые, разводи их в стороны-назад на уровне плеч", "Arms almost straight, sweep them out and back at shoulder height"],
+    ["Думай «развести руки широко», а не «свести лопатки» — лопатки почти неподвижны", "Think «spread the arms wide», not «squeeze the shoulder blades»; blades barely move"],
+    ["Ощущение: жжение на задней части плеча, сзади у подмышки", "What you should feel: a burn at the back of the shoulder, just behind the armpit"],
+    ["Чувствуешь шею, трапецию или середину спины — снизь вес", "Feel it in your neck, traps or mid-back? Drop the weight"],
+    ["Пауза 1 с в крайней точке, назад 2–3 с", "Pause 1 s at the end, return over 2–3 s"]] },
+  legpress: { ru: "Жим ногами в тренажёре", en: "Leg press", eq: ["Тренажёр для жима ногами", "Leg press machine"], w: true, tips: [
+    ["Поясница прижата к спинке", "Lower back stays on the backrest"],
+    ["Колени до замка не разгибай", "Don't lock your knees out"],
+    ["Вниз примерно до 90° в коленях", "Lower to about 90° at the knees"]] },
+  lunge: { ru: "Выпады с гантелями", en: "Dumbbell lunges", eq: ["Гантели", "Dumbbells"], w: true, tips: [
+    ["Шаг широкий, переднее колено далеко за носок не уходит", "Long step; front knee doesn't shoot far past your toes"],
+    ["Заднее колено почти касается пола", "Back knee almost touches the floor"],
+    ["Корпус вертикально", "Torso upright"]] },
+  reversecrunch: { ru: "Обратные скручивания на скамье", en: "Reverse crunch on a decline bench", eq: ["Скамья с обратным наклоном (или горизонтальная)", "Decline bench (or flat bench)"], w: false, tips: [
+    ["Держись за скамью над головой", "Hold the bench behind your head"],
+    ["Подтягивай колени к груди, отрывая таз", "Pull knees to chest, lifting your hips off"],
+    ["Вниз медленно, ноги не бросай", "Lower slowly, don't drop your legs"]] },
+  dbrow: { ru: "Тяга гантели в наклоне", en: "One-arm dumbbell row", eq: ["Гантель, скамья", "Dumbbell, bench"], w: true, tips: [
+    ["Колено и рука на скамье, спина параллельно полу", "Knee and hand on the bench, back parallel to the floor"],
+    ["Тяни гантель к поясу, локоть вдоль корпуса", "Pull the dumbbell to your hip, elbow close to your body"],
+    ["Корпус не скручивай", "Don't twist your torso"]] },
+  deadlift: { ru: "Становая тяга", en: "Deadlift", eq: ["Штанга", "Barbell"], w: true, tips: [
+    ["Спина прямая всё время, никогда не круглая", "Back flat the whole time, never rounded"],
+    ["Гриф идёт вплотную к ногам", "Bar travels close to your legs"],
+    ["Толкай пол ногами, наверху назад не отклоняйся", "Push the floor away; don't lean back at the top"]],
+    note: ["15 повторов — бери умеренный вес, техника важнее", "15 reps: use a moderate weight, form comes first"] },
+  shrug: { ru: "Шраги", en: "Shrugs", eq: ["Гантели или штанга", "Dumbbells or barbell"], w: true, tips: [
+    ["Плечи вверх к ушам, без вращения", "Shoulders straight up to your ears, no rolling"],
+    ["Пауза 1 с вверху", "Pause 1 s at the top"],
+    ["Руки прямые, бицепсом не помогай", "Arms straight, don't help with your biceps"]] },
+  cgbench: { ru: "Жим штанги узким хватом", en: "Close-grip bench press", eq: ["Штанга, горизонтальная скамья", "Barbell, flat bench"], w: true, tips: [
+    ["Хват на ширине плеч, не уже", "Grip at shoulder width, no narrower"],
+    ["Локти идут вдоль корпуса", "Elbows travel close to your body"],
+    ["Гриф к низу груди", "Bar to your lower chest"]] },
+  ohext: { ru: "Разгибание рук из-за головы", en: "Overhead triceps extension", eq: ["Гантель (или канат на блоке)", "Dumbbell (or rope on a cable)"], w: true, tips: [
+    ["Локти смотрят вперёд-вверх и не расходятся", "Elbows point up and forward, don't flare"],
+    ["Опускай за голову до растяжения", "Lower behind your head to a stretch"],
+    ["Поясницу не прогибай", "Don't arch your lower back"]] }
+};
+
+const PLAN = [
+  { wk: 1, day: "I", groups: [
+    ["abs", [{ id: "crunch", s: 3, r: "15–20" }, { id: "abmachine", s: 3, r: "15–20" }]],
+    ["chest", [{ id: "bench", s: 3, r: "15" }, { id: "incline", s: 3, r: "15" }, { id: "pecdeck", s: 3, r: "15" }]],
+    ["biceps", [{ id: "bbcurl", s: 3, r: "15" }, { id: "hammer", s: 3, r: "15" }]]] },
+  { wk: 1, day: "II", groups: [
+    ["abs", [{ id: "cablecrunch", s: 3, r: "15" }, { id: "hangraise", s: 3, r: "15" }]],
+    ["shoulders", [{ id: "reardb", s: 3, r: "15" }, { id: "lateral", s: 3, r: "15" }, { id: "dbpress", s: 3, r: "15" }]],
+    ["legs", [{ id: "squat", s: 3, r: "20–25" }, { id: "legcurl", s: 3, r: "20" }]]] },
+  { wk: 1, day: "III", groups: [
+    ["abs", [{ id: "abwheel", s: 3, r: "15" }, { id: "plank", s: 3, hold: 300 }]],
+    ["back", [{ id: "pulldown", s: 3, r: "15" }, { id: "hyper", s: 3, r: "15" }, { id: "seatedrow", s: 3, r: "15" }]],
+    ["triceps", [{ id: "french", s: 3, r: "15" }, { id: "pushdown", s: 3, r: "15" }]]] },
+  { wk: 2, day: "I", groups: [
+    ["abs", [{ id: "hangraise", total: 50, note: ["Верх и низ пресса одним упражнением. 50 раз всего, подходы — как получится", "Upper and lower abs in one move. 50 reps total, split into as many sets as you need"] }]],
+    ["chest", [{ id: "kneelcross", s: 3, r: "15" }, { id: "declinedb", s: 3, r: "15" }, { id: "dbfly", s: 3, r: "15" }]],
+    ["biceps", [{ id: "preacher", s: 3, r: "15" }, { id: "reversecurl", s: 3, r: "15" }]]] },
+  { wk: 2, day: "II", groups: [
+    ["abs", [{ id: "crunch", s: 4, r: "12" }, { id: "abmachine", s: 4, r: "12" }]],
+    ["shoulders", [{ id: "arnold", s: 3, r: "12" }, { id: "plateraise", s: 3, r: "15" }, { id: "rearcable", s: 3, r: "15" }]],
+    ["legs", [{ id: "legpress", s: 3, r: "25" }, { id: "lunge", s: 3, r: "20" }]]] },
+  { wk: 2, day: "III", groups: [
+    ["abs", [{ id: "crunch", s: 4, r: "12" }, { id: "reversecrunch", s: 4, r: "12", note: ["Замена «доски» у стены из старого зала", "Replaces the wall-mounted ab board from the old gym"] }]],
+    ["back", [{ id: "dbrow", s: 3, r: "12" }, { id: "deadlift", s: 3, r: "15" }, { id: "shrug", s: 3, r: "15" }]],
+    ["triceps", [{ id: "cgbench", s: 3, r: "12" }, { id: "ohext", s: 3, r: "15" }]]] }
+];
+const DAYNUM = { I: 1, II: 2, III: 3 };
+
+/* ---------- state ---------- */
+const KEY = "gym-notebook-v1";
+function blank() { return { pos: 0, lang: "both", rest: 90, sessions: {}, log: {}, history: [], updatedAt: 0 }; }
+function normalize(s) {
+  const b = blank();
+  s = Object.assign(b, s || {});
+  if (!(s.pos >= 0 && s.pos < PLAN.length)) s.pos = 0;
+  if (!["both", "ru", "en"].includes(s.lang)) s.lang = "both";
+  if (![60, 90, 120].includes(s.rest)) s.rest = 90;
+  s.sessions = s.sessions || {}; s.log = s.log || {}; s.history = Array.isArray(s.history) ? s.history : [];
+  return s;
+}
+let st = blank();
+try { st = normalize(JSON.parse(localStorage.getItem(KEY))); } catch (e) { st = blank(); }
+
+function writeLocal() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
+function save() { st.updatedAt = Date.now(); writeLocal(); }
+
+/* ---------- storage status ---------- */
+let storageOk = true;
+try { localStorage.setItem(KEY + "-probe", "1"); localStorage.removeItem(KEY + "-probe"); } catch (e) { storageOk = false; }
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+function setSync() {
+  const el = document.getElementById("sync");
+  el.dataset.s = storageOk ? "ok" : "err";
+  document.getElementById("syncTxt").textContent = storageOk
+    ? ui("Сохранено на телефоне", "Saved on this phone")
+    : ui("Сохранение недоступно", "Saving is blocked");
+}
+
+/* ---------- backup ---------- */
+async function exportBackup() {
+  const name = `gym-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  const blob = new Blob([JSON.stringify(st, null, 1)], { type: "application/json" });
+  const file = new File([blob], name, { type: "application/json" });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: name });
+      return;
+    }
+  } catch (e) { if (e && e.name === "AbortError") return; }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+function importBackup(file) {
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const data = JSON.parse(r.result);
+      if (!data || typeof data !== "object" || !("pos" in data)) throw new Error("bad");
+      const before = JSON.stringify(st);
+      st = normalize(data); save(); render();
+      toast(ui("Резервная копия загружена", "Backup restored"), () => { st = normalize(JSON.parse(before)); save(); render(); });
+    } catch (e) {
+      toast(ui("Это не файл резервной копии. Выбери файл gym-backup-….json", "That isn't a backup file. Pick a gym-backup-….json file"));
+    }
+  };
+  r.readAsText(file);
+}
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const ui = (ru, en) => st.lang === "ru" ? ru : en;
+function pair(ru, en, tagA, tagB) {
+  if (st.lang === "ru") return `<${tagA}>${ru}</${tagA}>`;
+  if (st.lang === "en") return `<${tagA}>${en}</${tagA}>`;
+  return `<${tagA}>${ru}</${tagA}><${tagB} class="alt">${en}</${tagB}>`;
+}
+function sess() {
+  const k = String(st.pos);
+  if (!st.sessions[k]) st.sessions[k] = { t: {}, c: {}, w: {} };
+  return st.sessions[k];
+}
+function fmtDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString(st.lang === "ru" ? "ru-RU" : "en-GB", { weekday: "short", day: "numeric", month: "short" });
+}
+function daysAgo(iso) {
+  const a = new Date(iso); a.setHours(0, 0, 0, 0);
+  const b = new Date(); b.setHours(0, 0, 0, 0);
+  return Math.round((b - a) / 864e5);
+}
+function agoText(n) {
+  if (n === 0) return ui("сегодня", "today");
+  if (n === 1) return ui("вчера", "yesterday");
+  if (st.lang === "ru") {
+    const m10 = n % 10, m100 = n % 100;
+    const w = m10 === 1 && m100 !== 11 ? "день" : (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) ? "дня" : "дней";
+    return `${n} ${w} назад`;
+  }
+  return `${n} days ago`;
+}
+const mmss = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+function dayLabel(p) {
+  const d = PLAN[p];
+  return { ru: `Неделя ${d.wk} · День ${d.day}`, en: `Week ${d.wk} · Day ${DAYNUM[d.day]}` };
+}
+function itemDone(it, s) {
+  if (it.total) return (s.c[it.id] || 0) >= it.total;
+  const t = s.t[it.id] || [];
+  return t.filter(Boolean).length >= it.s;
+}
+function progress(p) {
+  const s = st.sessions[String(p)] || { t: {}, c: {} };
+  let done = 0, all = 0;
+  for (const [, items] of PLAN[p].groups) for (const it of items) {
+    if (it.total) { all += 1; done += Math.min(1, (s.c[it.id] || 0) / it.total); }
+    else { all += it.s; done += (s.t[it.id] || []).filter(Boolean).length; }
+  }
+  return all ? done / all : 0;
+}
+
+/* ---------- render ---------- */
+function render() {
+  document.documentElement.lang = st.lang === "en" ? "en" : "ru";
+  const L = dayLabel(st.pos);
+  $("dayTitle").textContent = st.lang === "en" ? L.en : L.ru;
+  $("daySub").textContent = st.lang === "both" ? L.en : PLAN[st.pos].groups.map(g => ui(G[g[0]][0], G[g[0]][1])).join(" · ");
+  $("brand").textContent = st.lang === "ru" ? "Тетрадь тренировок" : st.lang === "en" ? "Gym Notebook" : "Тетрадь · Gym Notebook";
+  $("prev").setAttribute("aria-label", ui("Предыдущий день", "Previous day"));
+  $("next").setAttribute("aria-label", ui("Следующий день", "Next day"));
+  $("dots").innerHTML = PLAN.map((d, i) =>
+    `<button class="dot${d.wk === 2 ? " wk2" : ""}" data-pos="${i}" aria-current="${i === st.pos}" aria-label="${esc(dayLabel(i).en)}">${d.wk}·${d.day}</button>`).join("");
+  $("prog").style.width = Math.round(progress(st.pos) * 100) + "%";
+
+  const s = sess();
+  let n = 0, html = "";
+  const last = st.history[0];
+  if (last) {
+    const lp = dayLabel(last.pos);
+    html += `<div class="since">${ui("Прошлая тренировка", "Last workout")}: ${st.lang === "en" ? lp.en : lp.ru} · ${agoText(daysAgo(last.date))}</div>`;
+  }
+  for (const [g, items] of PLAN[st.pos].groups) {
+    html += `<section class="group"><h2>${st.lang === "en" ? G[g][1] : G[g][0]}${st.lang === "both" ? `<span>${G[g][1]}</span>` : ""}</h2>`;
+    for (const it of items) {
+      n++;
+      const ex = EX[it.id];
+      const done = itemDone(it, s);
+      const scheme = it.total ? `${it.total}` : it.hold ? `${it.s}×${mmss(it.hold)}` : `${it.s}×${it.r}`;
+      html += `<article class="ex${done ? " complete" : ""}" data-id="${it.id}">
+        <div class="ex-head"><div class="n">${n}</div><div class="names">${pair(ex.ru, ex.en, "h3", "p")}</div><div class="scheme">${scheme}</div></div>`;
+      if (it.total) {
+        const c = s.c[it.id] || 0;
+        html += `<div class="counter"><div class="val">${c}<small> / ${it.total}</small></div>
+          <button data-act="cnt" data-v="-1" aria-label="minus 1">−1</button>
+          <button data-act="cnt" data-v="1">+1</button>
+          <button data-act="cnt" data-v="5">+5</button>
+          <button data-act="cnt" data-v="10">+10</button></div>`;
+      } else {
+        const t = s.t[it.id] || [];
+        html += `<div class="sets">`;
+        for (let i = 0; i < it.s; i++) {
+          const lbl = it.hold ? mmss(it.hold) : it.r.split("–")[0];
+          html += `<button class="set" data-act="set" data-i="${i}" aria-pressed="${!!t[i]}" aria-label="${ui("Подход", "Set")} ${i + 1}">${t[i] ? "✓" : lbl}</button>`;
+        }
+        if (it.hold) html += `<button class="hold-btn" data-act="hold" data-sec="${it.hold}">▶ ${ui("Старт", "Start")} ${mmss(it.hold)}</button>`;
+        html += `</div>`;
+      }
+      if (ex.w) {
+        const prev = st.log[it.id];
+        const val = s.w[it.id] || "";
+        html += `<div class="weight"><label for="w-${it.id}">${ui("Вес", "Weight")}</label>
+          <div class="inp"><input id="w-${it.id}" data-id="${it.id}" inputmode="decimal" autocomplete="off" placeholder="${prev ? esc(prev.w) : "—"}" value="${esc(val)}"><span class="unit">${ui("кг", "kg")}</span></div>
+          <span class="last">${prev ? `${ui("прошлый раз", "last time")}: <b>${esc(prev.w)}</b> · ${fmtDate(prev.d)}` : ui("ещё не записан", "not logged yet")}</span></div>`;
+      }
+      const note = it.note || ex.note;
+      html += `<details data-key="${st.pos}-${it.id}"><summary>${st.lang === "both" ? "Техника · Technique" : ui("Техника", "Technique")}</summary>
+        <div class="eq"><span>${st.lang === "both" ? "Снаряд · Equipment" : ui("Снаряд", "Equipment")}:</span> ${st.lang === "en" ? ex.eq[1] : ex.eq[0]}${st.lang === "both" ? ` <span>/ ${ex.eq[1]}</span>` : ""}</div>
+        <ul class="tips">${ex.tips.map(([r, e]) => `<li>${st.lang === "en" ? e : r}${st.lang === "both" ? `<span class="alt">${e}</span>` : ""}</li>`).join("")}</ul>
+        ${note ? `<div class="note">${st.lang === "en" ? note[1] : note[0]}${st.lang === "both" ? `<br>${note[1]}` : ""}</div>` : ""}
+      </details></article>`;
+    }
+    html += `</section>`;
+  }
+  const allDone = progress(st.pos) >= 0.999;
+  const nextL = dayLabel((st.pos + 1) % PLAN.length);
+  html += `<button class="finish${allDone ? " ready" : ""}" id="finish">${ui("Завершить", "Finish")} → ${st.lang === "en" ? nextL.en : nextL.ru}</button>`;
+
+  html += `<section class="panel"><h2>${ui("История", "History")}</h2>`;
+  if (st.history.length) {
+    html += `<ul class="hist">${st.history.slice(0, 12).map(h => {
+      const l = dayLabel(h.pos);
+      return `<li><span>${st.lang === "en" ? l.en : l.ru}</span><span>${fmtDate(h.date)}</span></li>`;
+    }).join("")}</ul>`;
+  } else {
+    html += `<p class="empty">${ui("Здесь появятся завершённые тренировки. Нажми «Завершить» внизу дня.", "Finished workouts show up here. Tap Finish at the bottom of a day.")}</p>`;
+  }
+  html += `</section>`;
+
+  html += `<section class="panel"><h2>${ui("Настройки", "Settings")}</h2>
+    <div class="opt"><span>${ui("Язык", "Language")}</span><div class="seg">
+      <button data-act="lang" data-v="both" aria-pressed="${st.lang === "both"}">RU + EN</button>
+      <button data-act="lang" data-v="ru" aria-pressed="${st.lang === "ru"}">RU</button>
+      <button data-act="lang" data-v="en" aria-pressed="${st.lang === "en"}">EN</button></div></div>
+    <div class="opt"><span>${ui("Отдых после подхода", "Rest after each set")}</span><div class="seg">
+      ${[60, 90, 120].map(v => `<button data-act="rest" data-v="${v}" aria-pressed="${st.rest === v}">${mmss(v)}</button>`).join("")}</div></div>
+    <div class="opt"><span>${ui("Экран", "Screen")}</span><div class="seg">
+      <button data-act="wake" aria-pressed="${!!wakeLock}">${wakeLock ? ui("Не гаснет ✓", "Stays on ✓") : ui("Не гасить экран", "Keep screen on")}</button></div></div>
+    <div class="opt"><span>${ui("Резервная копия", "Backup")}</span><div class="seg">
+      <button data-act="export">${ui("Сохранить в файл", "Save to file")}</button>
+      <button data-act="import">${ui("Загрузить из файла", "Load from file")}</button></div></div>
+    <input type="file" id="importFile" accept=".json,application/json" hidden>
+    <p class="small">${ui("Делай копию раз в месяц и сохраняй в «Файлы» или iCloud — пригодится при смене телефона.", "Save a backup once a month to Files or iCloud; you'll need it when you change phones.")}</p>
+    <p class="small">${ui("Звук таймера не слышен, если iPhone в беззвучном режиме.", "The timer beep is silent when your iPhone is on silent mode.")}</p>
+  </section>`;
+
+  const openKeys = [...document.querySelectorAll("details[open]")].map(d => d.dataset.key);
+  $("main").innerHTML = html;
+  openKeys.forEach(k => { const d = document.querySelector(`details[data-key="${k}"]`); if (d) d.open = true; });
+  renderTimer();
+  setSync($("sync").dataset.s);
+}
+
+/* ---------- timer ---------- */
+const tm = { end: 0, label: "", go: 0, iv: null };
+let ac = null;
+function unlockAudio() {
+  try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === "suspended") ac.resume(); } catch (e) {}
+}
+function beep() {
+  if (!ac) return;
+  const t0 = ac.currentTime;
+  [0, 0.25, 0.5].forEach((o, i) => {
+    const osc = ac.createOscillator(), g = ac.createGain();
+    osc.frequency.value = i === 2 ? 1320 : 880;
+    g.gain.setValueAtTime(0.0001, t0 + o); g.gain.exponentialRampToValueAtTime(0.4, t0 + o + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + o + 0.18);
+    osc.connect(g).connect(ac.destination); osc.start(t0 + o); osc.stop(t0 + o + 0.2);
+  });
+}
+function startTimer(sec, label) {
+  unlockAudio();
+  tm.end = Date.now() + sec * 1000; tm.label = label; tm.go = 0;
+  clearInterval(tm.iv); tm.iv = setInterval(tickTimer, 250); renderTimer();
+}
+function stopTimer() { clearInterval(tm.iv); tm.end = 0; tm.go = 0; renderTimer(); }
+function tickTimer() {
+  if (tm.end && Date.now() >= tm.end) {
+    tm.end = 0; tm.go = Date.now() + 4000; beep();
+  }
+  if (tm.go && Date.now() >= tm.go) { tm.go = 0; clearInterval(tm.iv); }
+  renderTimer();
+}
+function renderTimer() {
+  const el = $("timer"), inner = $("timerInner");
+  el.classList.toggle("run", !!tm.end);
+  el.classList.toggle("go", !tm.end && !!tm.go);
+  if (tm.end) {
+    const left = Math.max(0, Math.ceil((tm.end - Date.now()) / 1000));
+    inner.innerHTML = `<div class="lbl"><b>${esc(tm.label)}</b>${ui("идёт отсчёт", "counting down")}</div>
+      <div class="clock">${mmss(left)}</div>
+      <button class="tbtn" data-act="t-add">+30</button><button class="tbtn" data-act="t-stop" aria-label="${ui("Стоп", "Stop")}">✕</button>`;
+  } else if (tm.go) {
+    inner.innerHTML = `<div class="lbl"><b>${ui("Время!", "Time's up!")}</b>${ui("следующий подход", "next set")}</div><div class="clock">0:00</div>`;
+  } else {
+    inner.innerHTML = `<div class="lbl"><b>${ui("Таймер отдыха", "Rest timer")}</b>${ui("стартует сам после подхода", "starts after each set")}</div>
+      ${[60, 90, 120].map(v => `<button class="tbtn" data-act="t-start" data-v="${v}">${mmss(v)}</button>`).join("")}`;
+  }
+}
+
+/* ---------- wake lock ---------- */
+let wakeLock = null, wantWake = false;
+async function getWake() {
+  try { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => { wakeLock = null; render(); }); }
+  catch (e) { wakeLock = null; wantWake = false; toast(ui("Этот браузер не даёт держать экран включённым", "This browser won't keep the screen on")); }
+  render();
+}
+document.addEventListener("visibilitychange", () => { if (wantWake && !wakeLock && document.visibilityState === "visible") getWake(); });
+
+/* ---------- toast ---------- */
+let toastT = null;
+function toast(msg, undoFn) {
+  const t = $("toast");
+  t.innerHTML = `<span>${esc(msg)}</span>${undoFn ? `<button id="undo">${ui("Отменить", "Undo")}</button>` : ""}`;
+  t.hidden = false;
+  if (undoFn) $("undo").onclick = () => { undoFn(); t.hidden = true; };
+  clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, undoFn ? 8000 : 3500);
+}
+
+/* ---------- actions ---------- */
+function go(p) { st.pos = (p + PLAN.length) % PLAN.length; save(); render(); window.scrollTo({ top: 0 }); }
+$("prev").onclick = () => go(st.pos - 1);
+$("next").onclick = () => go(st.pos + 1);
+$("dots").onclick = e => { const b = e.target.closest("[data-pos]"); if (b) go(+b.dataset.pos); };
+
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-act]");
+  if (!b) {
+    if (e.target.id === "finish") finish();
+    return;
+  }
+  const act = b.dataset.act, card = b.closest(".ex"), id = card && card.dataset.id;
+  const s = sess();
+  if (act === "set") {
+    const i = +b.dataset.i;
+    const t = s.t[id] = (s.t[id] || []).slice();
+    t[i] = !t[i];
+    save(); render();
+    if (t[i]) startTimer(st.rest, ui("Отдых", "Rest"));
+  } else if (act === "hold") {
+    startTimer(+b.dataset.sec, ui(EX[id].ru, EX[id].en));
+  } else if (act === "cnt") {
+    s.c[id] = Math.max(0, (s.c[id] || 0) + +b.dataset.v);
+    save(); render();
+  } else if (act === "lang") { st.lang = b.dataset.v; save(); render(); }
+  else if (act === "rest") { st.rest = +b.dataset.v; save(); render(); }
+  else if (act === "wake") {
+    if (wakeLock) { wantWake = false; wakeLock.release(); }
+    else if ("wakeLock" in navigator) { wantWake = true; getWake(); }
+    else toast(ui("Этот браузер не даёт держать экран включённым", "This browser won't keep the screen on"));
+  }
+  else if (act === "export") exportBackup();
+  else if (act === "import") $("importFile").click();
+  else if (act === "t-start") startTimer(+b.dataset.v, ui("Отдых", "Rest"));
+  else if (act === "t-stop") stopTimer();
+  else if (act === "t-add") { tm.end += 30000; renderTimer(); }
+});
+
+let wTimer = null;
+document.addEventListener("input", e => {
+  const inp = e.target;
+  if (!inp.matches(".weight input")) return;
+  const v = inp.value.replace(",", ".").replace(/[^\d.]/g, "");
+  sess().w[inp.dataset.id] = v;
+  clearTimeout(wTimer); wTimer = setTimeout(save, 600);
+});
+
+function finish() {
+  const before = JSON.stringify(st);
+  const s = sess();
+  const today = new Date().toISOString();
+  for (const [id, v] of Object.entries(s.w)) if (v) st.log[id] = { w: v, d: today };
+  st.history.unshift({ pos: st.pos, date: today });
+  st.history = st.history.slice(0, 200);
+  delete st.sessions[String(st.pos)];
+  const doneLabel = dayLabel(st.pos);
+  st.pos = (st.pos + 1) % PLAN.length;
+  save(); render(); window.scrollTo({ top: 0 });
+  toast(`${ui("Записано", "Logged")}: ${st.lang === "en" ? doneLabel.en : doneLabel.ru}`, () => {
+    st = normalize(JSON.parse(before)); save(); render();
+  });
+}
+
+document.addEventListener("change", e => {
+  if (e.target.id === "importFile" && e.target.files && e.target.files[0]) importBackup(e.target.files[0]);
+});
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
+}
+
+render();
+</script>
+
+</body>
+</html>
